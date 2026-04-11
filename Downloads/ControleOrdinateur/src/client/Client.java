@@ -7,7 +7,7 @@ import java.util.Scanner;
 public class Client {
 
     public static void main(String[] args) {
-        // Adresse IP du serveur (localhost = même machine pour les tests)
+
         String adresseServeur = "127.0.0.1";
         int port = 5000;
 

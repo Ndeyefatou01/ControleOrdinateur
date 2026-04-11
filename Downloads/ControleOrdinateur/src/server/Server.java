@@ -15,17 +15,15 @@ public class Server {
             while (true) {
                 System.out.println("[Serveur] En attente d'un client...");
 
-                // On accepte la connexion
                 Socket clientSocket = serverSocket.accept();
                 System.out.println("[Serveur] Client connecté : "
                     + clientSocket.getInetAddress().getHostAddress());
 
-                // On crée un thread pour ce client
                 Thread thread = new Thread(new ClientHandler(clientSocket));
                 thread.start();
 
                 System.out.println("[Serveur] Thread lancé : Thread-" 
-                    + thread.getId());
+                    + thread.getName());
             }
 
         } catch (IOException e) {

@@ -21,13 +21,13 @@ public class ClientHandler implements Runnable {
         ) {
             String commande;
             while ((commande = entree.readLine()) != null) {
-                System.out.println("[Thread-" + Thread.currentThread().getId()
+                System.out.println("[Thread-" + Thread.currentThread().getName()
                     + "] Commande reçue : " + commande);
                 String resultat = executerCommande(commande);
                 sortie.println(resultat);
                 sortie.println("---FIN---");
             }
-            System.out.println("[Thread-" + Thread.currentThread().getId()
+            System.out.println("[Thread-" + Thread.currentThread().getName()
                 + "] Client déconnecté.");
 
         } catch (IOException e) {
