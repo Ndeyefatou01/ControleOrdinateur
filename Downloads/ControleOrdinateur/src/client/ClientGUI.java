@@ -7,10 +7,7 @@ import java.awt.event.*;
 import java.io.*;
 import java.net.*;
 
-/**
- * Interface graphique Swing pour le client de contrôle à distance.
- * Permet de se connecter à un serveur, envoyer des commandes et voir les résultats.
- */
+
 public class ClientGUI extends JFrame {
 
     // ─── Composants de connexion ────────────────────────────────────────────
@@ -32,7 +29,7 @@ public class ClientGUI extends JFrame {
     private BufferedReader reception;
     private boolean connecte = false;
 
-    // ─── Couleurs ───────────────────────────────────────────────────────────
+
     private static final Color COULEUR_FOND       = new Color(30, 30, 46);
     private static final Color COULEUR_PANNEAU    = new Color(49, 50, 68);
     private static final Color COULEUR_ACCENT     = new Color(137, 180, 250);
@@ -76,7 +73,7 @@ public class ClientGUI extends JFrame {
         bandeau.setBackground(COULEUR_PANNEAU);
         bandeau.setBorder(new MatteBorder(0, 0, 2, 0, COULEUR_ACCENT));
 
-        // Icône terminal
+       
         JLabel icone = new JLabel("⬛ ");
         icone.setFont(new Font("Monospaced", Font.BOLD, 18));
         icone.setForeground(COULEUR_ACCENT);
@@ -261,9 +258,75 @@ public class ClientGUI extends JFrame {
                 envoi     = new PrintWriter(socket.getOutputStream(), true);
                 reception = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 
-                connecte = true;
+                String msg = reception.readLine();
+                if (!"LOGIN_REQUIRED".equals(msg)) {
+                    throw new IOException("Protocole inattendu : " + msg);
+                }
+
+                String[] identifiants = new String[2];
+                java.util.concurrent.CountDownLatch latch =
+                        new java.util.concurrent.CountDownLatch(1);
+
                 SwingUtilities.invokeLater(() -> {
-                    labelStatut.setText("● Connecté à " + ip + ":" + port);
+                    JPanel panel = new JPanel(new GridLayout(2, 2, 5, 8));
+                    panel.setBackground(COULEUR_FOND);
+                    JLabel lblLogin = new JLabel("Login :");
+                    lblLogin.setForeground(COULEUR_TEXTE);
+                    JLabel lblMdp = new JLabel("Mot de passe :");
+                    lblMdp.setForeground(COULEUR_TEXTE);
+                    JTextField champLogin = new JTextField();
+                    JPasswordField champMdp = new JPasswordField();
+                    panel.add(lblLogin);  panel.add(champLogin);
+                    panel.add(lblMdp);    panel.add(champMdp);
+
+                    int result = JOptionPane.showConfirmDialog(
+                            ClientGUI.this, panel, "Authentification",
+                            JOptionPane.OK_CANCEL_OPTION,
+                            JOptionPane.PLAIN_MESSAGE);
+
+                    if (result == JOptionPane.OK_OPTION) {
+                        identifiants[0] = champLogin.getText().trim();
+                        identifiants[1] = new String(champMdp.getPassword());
+                    }
+                    latch.countDown();
+                });
+
+                latch.await();
+
+                // Annulation par l'utilisateur
+                if (identifiants[0] == null || identifiants[0].isEmpty()) {
+                    socket.close();
+                    SwingUtilities.invokeLater(() -> {
+                        labelStatut.setText("● Déconnecté");
+                        labelStatut.setForeground(COULEUR_ROUGE);
+                        boutonConnexion.setEnabled(true);
+                    });
+                    return;
+                }
+
+                // Envoi des identifiants
+                envoi.println(identifiants[0]);
+                envoi.println(identifiants[1]);
+
+                String reponse = reception.readLine();
+                if (reponse == null || reponse.equals("AUTH_FAIL")) {
+                    socket.close();
+                    SwingUtilities.invokeLater(() -> {
+                        labelStatut.setText("● Déconnecté");
+                        labelStatut.setForeground(COULEUR_ROUGE);
+                        boutonConnexion.setEnabled(true);
+                        afficherErreur("Identifiants incorrects.");
+                    });
+                    return;
+                }
+
+                String role = reponse.contains(":") ? reponse.split(":")[1] : "USER";
+                boolean estAdmin = "ADMIN".equals(role);
+                connecte = true;
+                final String loginFinal = identifiants[0];
+
+                SwingUtilities.invokeLater(() -> {
+                    labelStatut.setText("● " + loginFinal + " [" + role + "] connecté");
                     labelStatut.setForeground(COULEUR_VERT);
                     boutonConnexion.setText("Déconnecter");
                     boutonConnexion.setBackground(COULEUR_ROUGE);
@@ -273,17 +336,20 @@ public class ClientGUI extends JFrame {
                     champIP.setEnabled(false);
                     champPort.setEnabled(false);
                     champCommande.requestFocus();
-                    ajouterLog("\n[✓] Connecté à " + ip + ":" + port + "\n");
+                    ajouterLog("\n[✓] Connecté en tant que " + loginFinal + " [" + role + "]\n");
+                    if (estAdmin)
+                        ajouterLog("Commande admin disponible : SIGNUP login:mdp\n");
                 });
 
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
             } catch (IOException ex) {
                 connecte = false;
                 SwingUtilities.invokeLater(() -> {
                     labelStatut.setText("● Déconnecté");
                     labelStatut.setForeground(COULEUR_ROUGE);
                     boutonConnexion.setEnabled(true);
-                    afficherErreur("Connexion impossible : " + ex.getMessage()
-                            + "\nVérifiez que le serveur est démarré.");
+                    afficherErreur("Connexion impossible : " + ex.getMessage());
                 });
             }
         }).start();
@@ -293,7 +359,6 @@ public class ClientGUI extends JFrame {
         try {
             if (socket != null && !socket.isClosed()) socket.close();
         } catch (IOException ignored) {}
-
         connecte = false;
         labelStatut.setText("● Déconnecté");
         labelStatut.setForeground(COULEUR_ROUGE);
@@ -310,35 +375,29 @@ public class ClientGUI extends JFrame {
         String commande = champCommande.getText().trim();
         if (commande.isEmpty() || !connecte) return;
 
-        // Ajouter à l'historique (sans doublons consécutifs)
-        if (historiqueModel.isEmpty()
-                || !historiqueModel.get(historiqueModel.size() - 1).equals(commande)) {
+        if (historiqueModel.isEmpty() ||
+                !historiqueModel.get(historiqueModel.size() - 1).equals(commande)) {
             historiqueModel.addElement(commande);
         }
-
         champCommande.setText("");
         boutonEnvoyer.setEnabled(false);
-
         ajouterLog("\n$ " + commande + "\n");
 
         new Thread(() -> {
             try {
                 envoi.println(commande);
-
                 StringBuilder sb = new StringBuilder();
                 String ligne;
                 while ((ligne = reception.readLine()) != null) {
                     if (ligne.equals("---FIN---")) break;
                     sb.append(ligne).append("\n");
                 }
-
                 String resultat = sb.toString();
                 SwingUtilities.invokeLater(() -> {
                     ajouterLog(resultat.isEmpty() ? "(pas de sortie)\n" : resultat);
                     boutonEnvoyer.setEnabled(true);
                     champCommande.requestFocus();
                 });
-
             } catch (IOException ex) {
                 SwingUtilities.invokeLater(() -> {
                     ajouterLog("[ERREUR] " + ex.getMessage() + "\n");
@@ -398,7 +457,6 @@ public class ClientGUI extends JFrame {
     // ════════════════════════════════════════════════════════════════════════
 
     public static void main(String[] args) {
-        // Thème système natif si disponible
         try {
             UIManager.setLookAndFeel(UIManager.getCrossPlatformLookAndFeelClassName());
         } catch (Exception ignored) {}

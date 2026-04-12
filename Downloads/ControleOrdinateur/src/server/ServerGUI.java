@@ -24,6 +24,7 @@ public class ServerGUI extends JFrame {
     private DefaultTableModel tableModel;
     private JTable tableClients;
     private JTextArea zoneJournal;
+    private AuthManager auth;
 
     private static final Color COULEUR_FOND    = new Color(30, 30, 46);
     private static final Color COULEUR_PANNEAU = new Color(49, 50, 68);
@@ -149,6 +150,7 @@ public class ServerGUI extends JFrame {
         int port;
         try { port = Integer.parseInt(champPort.getText().trim()); }
         catch (NumberFormatException e) { JOptionPane.showMessageDialog(this, "Port invalide."); return; }
+        auth = new AuthManager();
         new Thread(() -> {
             try {
                 serverSocket = new ServerSocket(port);
@@ -171,8 +173,8 @@ public class ServerGUI extends JFrame {
                             tableModel.addRow(new Object[]{id, ip, heure, 0, "Connecte"});
                             log("[CLIENT #" + id + "] Connecte depuis " + ip);
                         });
-                        int ligne = tableModel.getRowCount() - 1;
-                        Thread t = new Thread(() -> gererClient(clientSocket, id, ligne));
+                        Thread t = new Thread(new ClientHandler(clientSocket, auth));
+                        t.setName("Client-" + ip);
                         t.setDaemon(true);
                         t.start();
                     } catch (IOException e) {

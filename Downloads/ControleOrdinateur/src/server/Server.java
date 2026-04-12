@@ -9,6 +9,7 @@ public class Server {
 
     public static void main(String[] args) {
         System.out.println("=== Serveur démarré sur le port " + PORT + " ===");
+        AuthManager auth = new AuthManager();
 
         try (ServerSocket serverSocket = new ServerSocket(PORT)) {
 
@@ -16,10 +17,11 @@ public class Server {
                 System.out.println("[Serveur] En attente d'un client...");
 
                 Socket clientSocket = serverSocket.accept();
-                System.out.println("[Serveur] Client connecté : "
-                    + clientSocket.getInetAddress().getHostAddress());
+                String ip = clientSocket.getInetAddress().getHostAddress();
+                System.out.println("[Serveur] Connexion de : " + ip);
 
-                Thread thread = new Thread(new ClientHandler(clientSocket));
+                Thread thread = new Thread(new ClientHandler(clientSocket, auth));
+                 thread.setName("Client-" + ip);
                 thread.start();
 
                 System.out.println("[Serveur] Thread lancé : Thread-" 

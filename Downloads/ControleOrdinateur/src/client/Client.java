@@ -28,30 +28,62 @@ public class Client {
             System.out.println("[Client] Connecté au serveur !");
             System.out.println("Tapez une commande (ex: ls ou dir). 'exit' pour quitter.\n");
 
-            while (true) {
-                System.out.print(">> ");
-                String commande = scanner.nextLine();
+             //Authentification 
+            String msg = reception.readLine();
+            if (!"LOGIN_REQUIRED".equals(msg)) {
+                System.err.println("[Client] Protocole inattendu : " + msg);
+                return;
+            }
 
-                if (commande.equalsIgnoreCase("exit")) {
-                    System.out.println("Déconnexion...");
-                    break;
-                }
+            System.out.print("Login        : ");
+            String login = scanner.nextLine();
+            System.out.print("Mot de passe : ");
+            String mdp = scanner.nextLine();
 
-                // Envoyer la commande au serveur
+            envoi.println(login);
+            envoi.println(mdp);
+
+            String reponse = reception.readLine();
+
+            if (reponse == null || reponse.equals("AUTH_FAIL")) {
+                System.err.println("[Client] Identifiants incorrects.");
+                return;
+            }
+
+            // Récupérer le rôle depuis "AUTH_OK:ADMIN" ou "AUTH_OK:USER"
+            String role = reponse.contains(":") ? reponse.split(":")[1] : "USER";
+            boolean estAdmin = "ADMIN".equals(role);
+
+            System.out.println("[Client] ✓ Connecté en tant que : "
+                    + login + " [" + role + "]");
+
+            if (estAdmin) {
+                System.out.println("Commandes admin : SIGNUP login:mdp, dir, ipconfig, exit");
+            } else {
+                System.out.println("Commandes : dir, ipconfig, hostname, exit");
+            }
+            System.out.println();
+
+        while (true) {
+                System.out.print("[" + login + "]>> ");
+                String commande = scanner.nextLine().trim();
+                if (commande.equalsIgnoreCase("exit")) break;
+                if (commande.isEmpty()) continue;
+
                 envoi.println(commande);
-
-                // Lire et afficher la réponse ligne par ligne
                 System.out.println("--- Résultat ---");
                 String ligne;
                 while ((ligne = reception.readLine()) != null) {
-                    if (ligne.equals("---FIN---")) break; // Signal de fin
+                    if (ligne.equals("---FIN---")) break;
                     System.out.println(ligne);
                 }
                 System.out.println("----------------\n");
             }
 
+            System.out.println("Déconnexion.");
+
         } catch (ConnectException e) {
-            System.err.println("[Client] Impossible de se connecter. Le serveur est-il démarré ?");
+            System.err.println("[Client] Serveur injoignable.");
         } catch (IOException e) {
             System.err.println("[Client] Erreur : " + e.getMessage());
         }
