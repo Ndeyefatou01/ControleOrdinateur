@@ -5,9 +5,11 @@ import java.net.*;
 
 public class ClientHandler implements Runnable {
 
-    private Socket socket;
+    private final Socket socket;
     private final AuthManager auth;
-
+    private static final String FIN          = "---FIN---";
+    private static final String FIN_FICHIER  = "---FIN_FICHIER---";
+    
     public ClientHandler(Socket socket, AuthManager auth) {
         this.socket = socket;
         this.auth   = auth;
@@ -48,7 +50,7 @@ public class ClientHandler implements Runnable {
               if (commande.startsWith("SIGNUP ")) {
                     if (!auth.estAdmin(login)) {
                         sortie.println("[ERREUR] Accès refusé. Seul l'admin peut créer des comptes.");
-                        sortie.println("---FIN---");
+                        sortie.println(FIN);
                     } else {
                         gererSignup(commande, login, sortie);
                     }
@@ -64,7 +66,7 @@ public class ClientHandler implements Runnable {
                 } else {
                     String resultat = executerCommande(commande);
                     sortie.println(resultat);
-                    sortie.println("---FIN---");
+                    sortie.println(FIN);
                 }
             }
 
@@ -83,7 +85,7 @@ public class ClientHandler implements Runnable {
 
         if (!params.contains(":")) {
             sortie.println("[ERREUR] Syntaxe : SIGNUP login:motdepasse");
-            sortie.println("---FIN---");
+            sortie.println(FIN);
             return;
         }
 
@@ -101,7 +103,7 @@ public class ClientHandler implements Runnable {
         } else {
             sortie.println("[ERREUR] Impossible de créer le compte.");
         }
-        sortie.println("---FIN---");
+        sortie.println(FIN);
     }
 
     //Réception d'un fichier envoyé par le client (UPLOAD)
@@ -114,14 +116,14 @@ private void recevoirFichier(String nomFichier, BufferedReader entree,
     try (BufferedWriter bw = new BufferedWriter(new FileWriter(fichier))) {
         String ligne;
         while ((ligne = entree.readLine()) != null) {
-            if (ligne.equals("---FIN_FICHIER---")) break;
+            if (ligne.equals(FIN_FICHIER)) break;
             bw.write(ligne);
             bw.newLine();
         }
     }
     Logger.info("Fichier reçu : uploads/" + nomFichier);
     sortie.println("[✓] Fichier '" + nomFichier + "' uploadé avec succès.");
-    sortie.println("---FIN---");
+    sortie.println(FIN);
 }
 
 //Envoi d'un fichier au client (DOWNLOAD) 
@@ -131,7 +133,7 @@ private void envoyerFichier(String nomFichier, PrintWriter sortie) throws IOExce
 
     if (!fichier.exists()) {
         sortie.println("[ERREUR] Fichier introuvable : " + nomFichier);
-        sortie.println("---FIN---");
+        sortie.println(FIN);
         Logger.warn("DOWNLOAD demandé mais fichier introuvable : " + nomFichier);
         return;
     }
@@ -142,7 +144,7 @@ private void envoyerFichier(String nomFichier, PrintWriter sortie) throws IOExce
         while ((ligne = br.readLine()) != null)
             sortie.println(ligne);
     }
-    sortie.println("---FIN_FICHIER---");
+    sortie.println(FIN_FICHIER);
 }
 
     private String executerCommande(String commande) {

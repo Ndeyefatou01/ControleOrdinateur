@@ -11,7 +11,6 @@ public class AuthManager {
 
     private static final String FICHIER_USERS = "users.txt";
 
-    // login → [hash, role]
     private final Map<String, String[]> comptes = new HashMap<>();
 
     public AuthManager() {
@@ -24,7 +23,7 @@ public class AuthManager {
             ajouterCompte("admin", "admin123", "ADMIN");
             ajouterCompte("user1", "pass1",    "USER");
             sauvegarder();
-            System.out.println("[Auth] users.txt créé avec les comptes par défaut.");
+            Logger.info("[Auth] users.txt créé avec les comptes par défaut.");
         } else {
             try (BufferedReader br = new BufferedReader(new FileReader(f))) {
                 String ligne;
@@ -36,9 +35,9 @@ public class AuthManager {
                     comptes.put(parts[0].trim(),
                                 new String[]{parts[1].trim(), parts[2].trim()});
                 }
-                System.out.println("[Auth] " + comptes.size() + " compte(s) chargé(s).");
+                Logger.info("[Auth] " + comptes.size() + " compte(s) chargé(s).");
             } catch (IOException e) {
-                System.err.println("[Auth] Erreur lecture : " + e.getMessage());
+                Logger.erreur("[Auth] Erreur lecture : " + e.getMessage());
             }
         }
     }
@@ -60,7 +59,7 @@ public class AuthManager {
         if (comptes.containsKey(login)) return false;
         comptes.put(login, new String[]{hacher(motDePasse), role});
         sauvegarder();
-        System.out.println("[Auth] Compte créé : " + login + " (" + role + ")");
+        Logger.info("[Auth] Compte créé : " + login + " (" + role + ")");
         return true;
     }
 
@@ -78,7 +77,7 @@ public class AuthManager {
                 bw.newLine();
             }
         } catch (IOException e) {
-            System.err.println("[Auth] Erreur sauvegarde : " + e.getMessage());
+            Logger.erreur("[Auth] Erreur sauvegarde : " + e.getMessage());
         }
     }
 

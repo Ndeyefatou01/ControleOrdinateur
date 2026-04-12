@@ -31,7 +31,6 @@ public class ServerGUI extends JFrame {
     private static final Color COULEUR_ACCENT  = new Color(137, 180, 250);
     private static final Color COULEUR_VERT    = new Color(166, 227, 161);
     private static final Color COULEUR_ROUGE   = new Color(243, 139, 168);
-    private static final Color COULEUR_JAUNE   = new Color(249, 226, 175);
     private static final Color COULEUR_TEXTE   = new Color(205, 214, 244);
     private static final Color COULEUR_SAISIE  = new Color(69, 71, 90);
 
@@ -91,6 +90,7 @@ public class ServerGUI extends JFrame {
         panneau.add(titre, BorderLayout.NORTH);
         String[] colonnes = {"#", "Adresse IP", "Heure connexion", "Commandes", "Statut"};
         tableModel = new DefaultTableModel(colonnes, 0) {
+            @Override
             public boolean isCellEditable(int r, int c) { return false; }
         };
         tableClients = new JTable(tableModel);
@@ -151,7 +151,7 @@ public class ServerGUI extends JFrame {
         try { port = Integer.parseInt(champPort.getText().trim()); }
         catch (NumberFormatException e) { JOptionPane.showMessageDialog(this, "Port invalide."); return; }
         auth = new AuthManager();
-        Logger.setGuiListener(msg -> log(msg));
+        Logger.setGuiListener(this::log);
         new Thread(() -> {
             try {
                 serverSocket = new ServerSocket(port);
@@ -204,52 +204,6 @@ public class ServerGUI extends JFrame {
         });
     }
 
-    private void gererClient(Socket socket, int id, int ligne) {
-        String ip = socket.getInetAddress().getHostAddress();
-        int[] nb = {0};
-        try (
-            BufferedReader entree = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-            PrintWriter sortie = new PrintWriter(socket.getOutputStream(), true)
-        ) {
-            String commande;
-            while ((commande = entree.readLine()) != null) {
-                nb[0]++;
-                final String cmd = commande;
-                final int n = nb[0];
-                SwingUtilities.invokeLater(() -> {
-                    tableModel.setValueAt(n, ligne, 3);
-                    log("[CLIENT #" + id + " | " + ip + "] Commande : " + cmd);
-                });
-                String resultat = executerCommande(commande);
-                sortie.println(resultat);
-                sortie.println("---FIN---");
-            }
-        } catch (IOException e) {
-            if (actif) SwingUtilities.invokeLater(() -> log("[ERREUR client #" + id + "] " + e.getMessage()));
-        }
-        SwingUtilities.invokeLater(() -> {
-            if (ligne < tableModel.getRowCount()) tableModel.setValueAt("Deconnecte", ligne, 4);
-            log("[CLIENT #" + id + "] Deconnecte.");
-        });
-        try { socket.close(); } catch (IOException ignored) {}
-    }
-
-    private String executerCommande(String commande) {
-        StringBuilder resultat = new StringBuilder();
-        try {
-            String os = System.getProperty("os.name").toLowerCase();
-            ProcessBuilder pb;
-            if (os.contains("win")) pb = new ProcessBuilder("cmd.exe", "/c", commande);
-            else pb = new ProcessBuilder("/bin/sh", "-c", commande);
-            pb.redirectErrorStream(true);
-            Process process = pb.start();
-            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-            String ligne;
-            while ((ligne = reader.readLine()) != null) resultat.append(ligne).append("\n");
-            process.waitFor();
-        } catch (Exception e) { resultat.append("[ERREUR] ").append(e.getMessage()); }
-        return resultat.toString().trim();
-    }
 
     private void log(String message) {
         zoneJournal.append("[" + LocalTime.now().format(FMT) + "] " + message + "\n");

@@ -29,7 +29,7 @@ public class Server {
             }
 
         } catch (IOException e) {
-            System.err.println("[Serveur] Erreur : " + e.getMessage());
+            Logger.erreur("[Serveur] Erreur : " + e.getMessage());
         }
     }
 }

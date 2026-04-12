@@ -39,6 +39,12 @@ public class ClientGUI extends JFrame {
     private static final Color COULEUR_SAISIE     = new Color(69, 71, 90);
     private static final Color COULEUR_JAUNE      = new Color(249, 226, 175);
 
+    private static final String FIN         = "---FIN---";
+    private static final String FIN_FICHIER = "---FIN_FICHIER---";
+
+    private static final String POLICE      = "Monospaced";
+    private static final String STATUT_DECONNECTE = "● Déconnecté";
+
     public ClientGUI() {
         setTitle("Contrôle à Distance — Client");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -68,7 +74,7 @@ public class ClientGUI extends JFrame {
         add(splitPane, BorderLayout.CENTER);
     }
 
-    /** Bandeau supérieur : connexion + statut */
+    /** Bandeau supérieur : champs IP/port connexion + statut */
     private JPanel creerBandeau() {
         JPanel bandeau = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 8));
         bandeau.setBackground(COULEUR_PANNEAU);
@@ -227,7 +233,7 @@ public class ClientGUI extends JFrame {
     //  Logique réseau
     // ════════════════════════════════════════════════════════════════════════
 
-    /** Connecte ou déconnecte selon l'état actuel */
+    /** On Bascule entre connexion et déconnexion selon l'état actuel*/
     private void basculerConnexion() {
         if (connecte) {
             seDeconnecter();
@@ -236,6 +242,7 @@ public class ClientGUI extends JFrame {
         }
     }
 
+    
     private void seConnecter() {
         String ip   = champIP.getText().trim();
         String portStr = champPort.getText().trim();
@@ -391,49 +398,62 @@ public class ClientGUI extends JFrame {
 
         new Thread(() -> {
             try {
-
-            if (commande.startsWith("UPLOAD ")) {
-                String cheminFichier = commande.substring(7).trim();
-                File fichier = new File(cheminFichier);
-                if (!fichier.exists()) {
-                    SwingUtilities.invokeLater(() -> {
-                        ajouterLog("[ERREUR] Fichier introuvable : " + cheminFichier + "\n");
-                        boutonEnvoyer.setEnabled(true);
-                    });
-                    return;
-                }
-                envoi.println("UPLOAD " + fichier.getName());
-                try (BufferedReader fr = new BufferedReader(new FileReader(fichier))) {
-                    String ligne;
-                    while ((ligne = fr.readLine()) != null)
-                        envoi.println(ligne);
-                }
-                envoi.println("---FIN_FICHIER---");
-                // Lire la confirmation du serveur
-                StringBuilder sb = new StringBuilder();
-                String ligne;
-                while ((ligne = reception.readLine()) != null) {
-                    if (ligne.equals("---FIN---")) break;
-                    sb.append(ligne).append("\n");
-                }
-                final String resultat = sb.toString();
+             if (commande.startsWith("UPLOAD "))
+                    traiterUpload(commande.substring(7).trim());
+                else if (commande.startsWith("DOWNLOAD "))
+                    traiterDownload(commande.substring(9).trim());
+                else
+                    traiterCommande(commande);
+            } catch (IOException ex) {
                 SwingUtilities.invokeLater(() -> {
-                    ajouterLog(resultat.isEmpty() ? "(pas de réponse)\n" : resultat);
-                    boutonEnvoyer.setEnabled(true);
-                    champCommande.requestFocus();
+                    ajouterLog("[ERREUR] " + ex.getMessage() + "\n");
+                    seDeconnecter();
                 });
+            }
+        }).start();
+    }
+            private void traiterUpload(String cheminFichier) throws IOException {
+        File fichier = new File(cheminFichier);
+        if (!fichier.exists()) {
+            SwingUtilities.invokeLater(() -> {
+                ajouterLog("[ERREUR] Fichier introuvable : " + cheminFichier + "\n");
+                boutonEnvoyer.setEnabled(true);
+            });
+            return;
+        }
+        envoi.println("UPLOAD " + fichier.getName());
+        try (BufferedReader fr = new BufferedReader(new FileReader(fichier))) {
+            String ligne;
+            while ((ligne = fr.readLine()) != null)
+                envoi.println(ligne);
+        }
+        envoi.println(FIN_FICHIER);
 
-            } else if (commande.startsWith("DOWNLOAD ")) {
-            String nomFichier = commande.substring(9).trim();
-            envoi.println(commande);
+        StringBuilder sb = new StringBuilder();
+        String ligne;
+        while ((ligne = reception.readLine()) != null) {
+            if (ligne.equals(FIN)) break;
+            sb.append(ligne).append("\n");
+        }
+        final String resultat = sb.toString();
+        SwingUtilities.invokeLater(() -> {
+            ajouterLog(resultat.isEmpty() ? "(pas de réponse)\n" : resultat);
+            boutonEnvoyer.setEnabled(true);
+            champCommande.requestFocus();
+        });
+    }
+
+            private void traiterDownload(String nomFichier) throws IOException {
+            envoi.println("DOWNLOAD " + nomFichier);
             new File("downloads").mkdirs();
             File fichierLocal = new File("downloads", nomFichier);
             StringBuilder sbErreur = new StringBuilder();
             boolean erreur = false;
+
             try (BufferedWriter bw = new BufferedWriter(new FileWriter(fichierLocal))) {
                 String ligne;
                 while ((ligne = reception.readLine()) != null) {
-                    if (ligne.equals("---FIN_FICHIER---")) break;
+                    if (ligne.equals(FIN_FICHIER)) break;
                     if (ligne.startsWith("[ERREUR]")) {
                         sbErreur.append(ligne);
                         erreur = true;
@@ -444,24 +464,24 @@ public class ClientGUI extends JFrame {
                     bw.newLine();
                 }
             }
+
             final boolean echecFinal = erreur;
             final String nomFinal = nomFichier;
             final String msgErreur = sbErreur.toString();
             SwingUtilities.invokeLater(() -> {
-                if (echecFinal)
-                    ajouterLog(msgErreur + "\n");
-                else
-                    ajouterLog("[✓] Fichier sauvegardé dans downloads/" + nomFinal + "\n");
+               ajouterLog(echecFinal ? msgErreur + "\n"
+                                  : "[✓] Fichier sauvegardé dans downloads/" + nomFichier + "\n");
                 boutonEnvoyer.setEnabled(true);
                 champCommande.requestFocus();
             });
+        }
 
-              } else {
+            private void traiterCommande(String commande) throws IOException {
                 envoi.println(commande);
                 StringBuilder sb = new StringBuilder();
                 String ligne;
                 while ((ligne = reception.readLine()) != null) {
-                    if (ligne.equals("---FIN---")) break;
+                    if (ligne.equals(FIN)) break;
                     sb.append(ligne).append("\n");
                 }
                 String resultat = sb.toString();
@@ -471,14 +491,7 @@ public class ClientGUI extends JFrame {
                     champCommande.requestFocus();
                 });
               }
-            } catch (IOException ex) {
-                SwingUtilities.invokeLater(() -> {
-                    ajouterLog("[ERREUR] " + ex.getMessage() + "\n");
-                    seDeconnecter();
-                });
-            }
-        }).start();
-    }
+            
     private void ouvrirSelecteurFichier() {
     if (!connecte) {
         afficherErreur("Connectez-vous d'abord au serveur.");
