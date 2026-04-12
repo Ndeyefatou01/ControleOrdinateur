@@ -37,6 +37,7 @@ public class ClientGUI extends JFrame {
     private static final Color COULEUR_ROUGE      = new Color(243, 139, 168);
     private static final Color COULEUR_TEXTE      = new Color(205, 214, 244);
     private static final Color COULEUR_SAISIE     = new Color(69, 71, 90);
+    private static final Color COULEUR_JAUNE      = new Color(249, 226, 175);
 
     public ClientGUI() {
         setTitle("Contrôle à Distance — Client");
@@ -210,7 +211,12 @@ public class ClientGUI extends JFrame {
             champCommande.requestFocus();
         });
 
+        JButton boutonUpload = creerBouton("📁 Upload", COULEUR_JAUNE);
+        boutonUpload.setForeground(COULEUR_FOND);
+        boutonUpload.addActionListener(e -> ouvrirSelecteurFichier());
+
         boutons.add(boutonEnvoyer);
+        boutons.add(boutonUpload);
         boutons.add(boutonEffacer);
         barre.add(boutons, BorderLayout.EAST);
 
@@ -385,6 +391,72 @@ public class ClientGUI extends JFrame {
 
         new Thread(() -> {
             try {
+
+            if (commande.startsWith("UPLOAD ")) {
+                String cheminFichier = commande.substring(7).trim();
+                File fichier = new File(cheminFichier);
+                if (!fichier.exists()) {
+                    SwingUtilities.invokeLater(() -> {
+                        ajouterLog("[ERREUR] Fichier introuvable : " + cheminFichier + "\n");
+                        boutonEnvoyer.setEnabled(true);
+                    });
+                    return;
+                }
+                envoi.println("UPLOAD " + fichier.getName());
+                try (BufferedReader fr = new BufferedReader(new FileReader(fichier))) {
+                    String ligne;
+                    while ((ligne = fr.readLine()) != null)
+                        envoi.println(ligne);
+                }
+                envoi.println("---FIN_FICHIER---");
+                // Lire la confirmation du serveur
+                StringBuilder sb = new StringBuilder();
+                String ligne;
+                while ((ligne = reception.readLine()) != null) {
+                    if (ligne.equals("---FIN---")) break;
+                    sb.append(ligne).append("\n");
+                }
+                final String resultat = sb.toString();
+                SwingUtilities.invokeLater(() -> {
+                    ajouterLog(resultat.isEmpty() ? "(pas de réponse)\n" : resultat);
+                    boutonEnvoyer.setEnabled(true);
+                    champCommande.requestFocus();
+                });
+
+            } else if (commande.startsWith("DOWNLOAD ")) {
+            String nomFichier = commande.substring(9).trim();
+            envoi.println(commande);
+            new File("downloads").mkdirs();
+            File fichierLocal = new File("downloads", nomFichier);
+            StringBuilder sbErreur = new StringBuilder();
+            boolean erreur = false;
+            try (BufferedWriter bw = new BufferedWriter(new FileWriter(fichierLocal))) {
+                String ligne;
+                while ((ligne = reception.readLine()) != null) {
+                    if (ligne.equals("---FIN_FICHIER---")) break;
+                    if (ligne.startsWith("[ERREUR]")) {
+                        sbErreur.append(ligne);
+                        erreur = true;
+                        reception.readLine(); 
+                        break;
+                    }
+                    bw.write(ligne);
+                    bw.newLine();
+                }
+            }
+            final boolean echecFinal = erreur;
+            final String nomFinal = nomFichier;
+            final String msgErreur = sbErreur.toString();
+            SwingUtilities.invokeLater(() -> {
+                if (echecFinal)
+                    ajouterLog(msgErreur + "\n");
+                else
+                    ajouterLog("[✓] Fichier sauvegardé dans downloads/" + nomFinal + "\n");
+                boutonEnvoyer.setEnabled(true);
+                champCommande.requestFocus();
+            });
+
+              } else {
                 envoi.println(commande);
                 StringBuilder sb = new StringBuilder();
                 String ligne;
@@ -398,6 +470,7 @@ public class ClientGUI extends JFrame {
                     boutonEnvoyer.setEnabled(true);
                     champCommande.requestFocus();
                 });
+              }
             } catch (IOException ex) {
                 SwingUtilities.invokeLater(() -> {
                     ajouterLog("[ERREUR] " + ex.getMessage() + "\n");
@@ -406,6 +479,20 @@ public class ClientGUI extends JFrame {
             }
         }).start();
     }
+    private void ouvrirSelecteurFichier() {
+    if (!connecte) {
+        afficherErreur("Connectez-vous d'abord au serveur.");
+        return;
+    }
+    JFileChooser chooser = new JFileChooser();
+    chooser.setDialogTitle("Choisir un fichier à uploader");
+    int resultat = chooser.showOpenDialog(this);
+    if (resultat == JFileChooser.APPROVE_OPTION) {
+        File fichier = chooser.getSelectedFile();
+        champCommande.setText("UPLOAD " + fichier.getAbsolutePath());
+        envoyerCommande();
+    }
+}
 
     // ════════════════════════════════════════════════════════════════════════
     //  Utilitaires

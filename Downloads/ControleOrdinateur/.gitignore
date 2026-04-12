@@ -3,3 +3,5 @@ users.txt
 *.class
 .vscode
 server.log
+downloads
+uploads

@@ -52,6 +52,14 @@ public class ClientHandler implements Runnable {
                     } else {
                         gererSignup(commande, login, sortie);
                     }
+                
+                } else if (commande.startsWith("UPLOAD ")) {
+                    String nomFichier = commande.substring(7).trim();
+                    recevoirFichier(nomFichier, entree, sortie);
+
+                } else if (commande.startsWith("DOWNLOAD ")) {
+                    String nomFichier = commande.substring(9).trim();
+                    envoyerFichier(nomFichier, sortie);
 
                 } else {
                     String resultat = executerCommande(commande);
@@ -95,6 +103,47 @@ public class ClientHandler implements Runnable {
         }
         sortie.println("---FIN---");
     }
+
+    //Réception d'un fichier envoyé par le client (UPLOAD)
+private void recevoirFichier(String nomFichier, BufferedReader entree,
+                              PrintWriter sortie) throws IOException {
+    File dossier = new File("uploads");
+    if (!dossier.exists()) dossier.mkdirs();
+
+    File fichier = new File(dossier, nomFichier);
+    try (BufferedWriter bw = new BufferedWriter(new FileWriter(fichier))) {
+        String ligne;
+        while ((ligne = entree.readLine()) != null) {
+            if (ligne.equals("---FIN_FICHIER---")) break;
+            bw.write(ligne);
+            bw.newLine();
+        }
+    }
+    Logger.info("Fichier reçu : uploads/" + nomFichier);
+    sortie.println("[✓] Fichier '" + nomFichier + "' uploadé avec succès.");
+    sortie.println("---FIN---");
+}
+
+//Envoi d'un fichier au client (DOWNLOAD) 
+private void envoyerFichier(String nomFichier, PrintWriter sortie) throws IOException {
+    File fichier = new File("uploads", nomFichier);
+    if (!fichier.exists()) fichier = new File(nomFichier);
+
+    if (!fichier.exists()) {
+        sortie.println("[ERREUR] Fichier introuvable : " + nomFichier);
+        sortie.println("---FIN---");
+        Logger.warn("DOWNLOAD demandé mais fichier introuvable : " + nomFichier);
+        return;
+    }
+
+    Logger.info("Envoi du fichier : " + fichier.getPath());
+    try (BufferedReader br = new BufferedReader(new FileReader(fichier))) {
+        String ligne;
+        while ((ligne = br.readLine()) != null)
+            sortie.println(ligne);
+    }
+    sortie.println("---FIN_FICHIER---");
+}
 
     private String executerCommande(String commande) {
         StringBuilder resultat = new StringBuilder();

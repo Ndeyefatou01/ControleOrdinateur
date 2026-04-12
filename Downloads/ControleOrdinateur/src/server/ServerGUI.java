@@ -151,6 +151,7 @@ public class ServerGUI extends JFrame {
         try { port = Integer.parseInt(champPort.getText().trim()); }
         catch (NumberFormatException e) { JOptionPane.showMessageDialog(this, "Port invalide."); return; }
         auth = new AuthManager();
+        Logger.setGuiListener(msg -> log(msg));
         new Thread(() -> {
             try {
                 serverSocket = new ServerSocket(port);

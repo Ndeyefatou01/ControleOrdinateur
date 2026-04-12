@@ -70,6 +70,51 @@ public class Client {
                 if (commande.equalsIgnoreCase("exit")) break;
                 if (commande.isEmpty()) continue;
 
+                 // ── UPLOAD
+                if (commande.startsWith("UPLOAD ")) {
+                    String cheminFichier = commande.substring(7).trim();
+                    File fichier = new File(cheminFichier);
+                    if (!fichier.exists()) {
+                        System.err.println("[ERREUR] Fichier local introuvable : " + cheminFichier);
+                        continue;
+                    }
+                    envoi.println("UPLOAD " + fichier.getName());
+                    try (BufferedReader fr = new BufferedReader(new FileReader(fichier))) {
+                        String ligne;
+                        while ((ligne = fr.readLine()) != null)
+                            envoi.println(ligne);
+                    }
+                    envoi.println("---FIN_FICHIER---");
+                    System.out.println("--- Résultat ---");
+                    String ligne;
+                    while ((ligne = reception.readLine()) != null) {
+                        if (ligne.equals("---FIN---")) break;
+                        System.out.println(ligne);
+                    }
+                    System.out.println("----------------\n");
+
+                // ── DOWNLOAD
+                } else if (commande.startsWith("DOWNLOAD ")) {
+                    String nomFichier = commande.substring(9).trim();
+                    envoi.println(commande);
+                    new File("downloads").mkdirs();
+                    File fichierLocal = new File("downloads", nomFichier);
+                    boolean erreur = false;
+                    try (BufferedWriter bw = new BufferedWriter(new FileWriter(fichierLocal))) {
+                        String ligne;
+                        while ((ligne = reception.readLine()) != null) {
+                            if (ligne.equals("---FIN_FICHIER---")) break;
+                            if (ligne.equals("---FIN---")) { erreur = true; break; }
+                            bw.write(ligne);
+                            bw.newLine();
+                        }
+                        if (!erreur) reception.readLine(); 
+                    }
+                    if (!erreur)
+                        System.out.println("[✓] Fichier sauvegardé dans downloads/" + nomFichier + "\n");
+
+                // ── Commande système normale 
+                } else {
                 envoi.println(commande);
                 System.out.println("--- Résultat ---");
                 String ligne;
@@ -79,7 +124,7 @@ public class Client {
                 }
                 System.out.println("----------------\n");
             }
-
+        }
             System.out.println("Déconnexion.");
 
         } catch (ConnectException e) {
